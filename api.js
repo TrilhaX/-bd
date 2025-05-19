@@ -5,12 +5,17 @@ const app = express()
 app.use(express.json())
 let db
 
+async function conectar() {
+    db = await open({
+        filename: './banco.db',
+        driver: sqlite.Database
+    })   
+    return db
+}
+
 async function dbConnection() {
-    try {
-        const db = await open({
-            filename: './banco.db',
-            driver: sqlite.Database
-        })        
+    try {     
+        db = await conectar()
         await db.exec(`CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
@@ -18,8 +23,11 @@ async function dbConnection() {
         )`)
         await db.exec(`CREATE TABLE IF NOT EXISTS tarefas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            tarefa TEXT NOT NULL UNIQUE
+            usuario_id INTEGER NOT NULL,
+            tarefa TEXT NOT NULL UNIQUE,
+            descricao TEXT NOT NULL,
+            status TEXT NOT NULL,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
         )`)
 
         const usuarios = await db.all(`SELECT * FROM usuarios`)
@@ -45,9 +53,9 @@ function usuario() {
 
 function tarefas() {
     app.post('/tarefas', async (req, res) => {
-        const { nome, tarefa } = req.body
+        const { tarefa, descricao, status, usuario_id } = req.body
         try {
-            const result = await db.run(`INSERT INTO tarefas (nome, tarefa) VALUES (?, ?)`, [nome, tarefa])
+            const result = await db.run(`INSERT INTO tarefas (tarefa, descricao, status, usuario_id) VALUES (?, ?, ?, ?)`, [ tarefa, descricao, status, usuario_id])
             res.status(201).json({ msg: "Tarefa criada com sucesso" })
         } catch (err) {
             res.status(500).json({ msg: `${err.message}` })
@@ -55,12 +63,10 @@ function tarefas() {
     })
 }
 
-dbConnection().then(retorno => {
-    db = retorno
+dbConnection().then(() => {
     usuario()
     tarefas()
-})
-
-app.listen(8000, () => {
-    console.log("Online Fi")
+    app.listen(8000, () => {
+        console.log("Online Fi")
+    })
 })
